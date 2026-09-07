@@ -24,7 +24,7 @@ jobs:
         VULKAN_SDK_VERSION: '1.4.309.0'
 
     - name: Checkout Repository with Submodules
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
       with:
         submodules: 'recursive'
         fetch-depth: 0
