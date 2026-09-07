@@ -4,6 +4,7 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+
 jobs:
   build_ios:
     runs-on: macos-latest
@@ -11,6 +12,7 @@ jobs:
     - name: Install dpkg
       run: |
         brew install dpkg
+
     - name: Install Vulkan SDK
       run: |
         cd $RUNNER_WORKSPACE
@@ -20,40 +22,55 @@ jobs:
         echo "VULKAN_SDK=${HOME}/VulkanSDK/${VULKAN_SDK_VERSION}/iOS" >> $GITHUB_ENV
       env:
         VULKAN_SDK_VERSION: '1.4.309.0'
-    - name: Checkout
+
+    - name: Checkout Repository with Submodules
       uses: actions/checkout@v4
       with:
         submodules: recursive
         fetch-depth: 0
-    - name: Init Submodules Recursively
+
+    - name: Fix and Init Nested Submodules (libchdr & zstd)
       run: |
-        git submodule sync
+        git submodule sync --recursive
         git submodule update --init --recursive
+        # Jawna inicjalizacja zagnieżdżona dla libchdr, aby zstd-1.5.6 na pewno się pojawiło
+        if [ -d "deps/libchdr" ]; then
+          cd deps/libchdr
+          git submodule update --init --recursive
+          cd ../..
+        fi
+
     - name: Force Fetch Git Tags
       run: git fetch --tags --force
+
     - name: Set SHORT_HASH
       run: echo "VALUE=${LONG_HASH:0:8}" >> $GITHUB_OUTPUT
       id: short_hash
       env:
         LONG_HASH: ${{ github.sha }}
+
     - name: Generate CMake Project
       run: |
         mkdir build
         cd build
         cmake .. -G"Xcode" -DCMAKE_TOOLCHAIN_FILE=../deps/Dependencies/cmake-ios/ios.cmake -DTARGET_IOS=ON -DCMAKE_PREFIX_PATH=$VULKAN_SDK -DBUILD_PSFPLAYER=ON -DBUILD_LIBRETRO_CORE=yes
+
     - name: Build
       run: |
         cd build
         cmake --build . --config Release
         codesign -s "-" Source/ui_ios/Release-iphoneos/Play.app
+
     - name: Generate IPA
       run: |
         cd installer_ios
         ./build_ipa.sh
+
     - name: Generate Cydia Package
       run: |
         cd installer_ios
         ./build_cydia.sh
+
     - name: Upload a Build Artifact ipa/deb/bz2
       uses: actions/upload-artifact@v4
       with:
@@ -62,6 +79,7 @@ jobs:
           installer_ios/Play.ipa
           installer_ios/Play.deb
           installer_ios/Packages.bz2
+
     - name: Upload a Build Artifact libretro
       uses: actions/upload-artifact@v4
       with:
